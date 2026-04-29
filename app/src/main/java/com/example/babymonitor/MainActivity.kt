@@ -59,7 +59,6 @@ class MainActivity : AppCompatActivity() {
         val missing = getMissingRuntimePermissions()
         if (missing.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, missing.toTypedArray(), PERMISSIONS_REQUEST_CODE)
-            ActivityCompat.requestPermissions(this, missing.toTypedArray(), 1001)
             statusText.text = "Status: waiting for permissions"
             return
         }
@@ -69,11 +68,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun getMissingRuntimePermissions(): List<String> {
         val permissions = requiredPermissions.toMutableList()
-        val permissions = mutableListOf(
-            Manifest.permission.RECORD_AUDIO,
-            Manifest.permission.CALL_PHONE,
-            Manifest.permission.SEND_SMS
-        )
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissions.add(Manifest.permission.POST_NOTIFICATIONS)
@@ -111,10 +105,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (requiredDenied) {
-        if (requestCode != 1001) return
-
-        val denied = grantResults.any { it != PackageManager.PERMISSION_GRANTED }
-        if (denied) {
             statusText.text = "Status: required permissions denied"
             return
         }
