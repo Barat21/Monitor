@@ -28,6 +28,14 @@
         android:layout_marginTop="16dp"
         android:text="Activate monitor" />
 
+
+    <Button
+        android:id="@+id/testAlertButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="Test call + SMS" />
+
     <Button
         android:id="@+id/stopButton"
         android:layout_width="match_parent"
