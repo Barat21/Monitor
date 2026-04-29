@@ -25,6 +25,8 @@ class CryMonitorService : Service() {
         private const val CHANNEL_ID = "cry_monitor_channel"
         private const val SAMPLE_RATE = 16000
         private const val WINDOW_SIZE = 16000
+        private const val DETECTION_THRESHOLD = 0.70f
+        private const val REQUIRED_CONSECUTIVE_WINDOWS = 2
     }
 
     private val running = AtomicBoolean(false)
@@ -91,15 +93,15 @@ class CryMonitorService : Service() {
 
             while (running.get()) {
                 val read = audioRecord.read(buffer, 0, buffer.size)
-                if (read > 0) {
+                if (read == WINDOW_SIZE) {
                     val score = BabyCryInference.predictCryScore(interpreter, buffer)
-                    if (score >= 0.95f) {
+                    if (score >= DETECTION_THRESHOLD) {
                         consecutiveAlerts++
                     } else {
                         consecutiveAlerts = 0
                     }
 
-                    if (consecutiveAlerts >= 3) {
+                    if (consecutiveAlerts >= REQUIRED_CONSECUTIVE_WINDOWS) {
                         triggerEmergency(phoneNumber)
                         consecutiveAlerts = 0
                         Thread.sleep(60_000)

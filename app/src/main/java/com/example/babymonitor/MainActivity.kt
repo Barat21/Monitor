@@ -59,7 +59,8 @@ class MainActivity : AppCompatActivity() {
         val missing = getMissingRuntimePermissions()
         if (missing.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, missing.toTypedArray(), PERMISSIONS_REQUEST_CODE)
-            statusText.text = "Status: waiting for permissions"
+            val labels = missing.joinToString(", ") { permissionLabel(it) }
+            statusText.text = "Status: grant permissions -> $labels"
             return
         }
 
@@ -76,6 +77,15 @@ class MainActivity : AppCompatActivity() {
         return permissions.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
+    }
+
+
+    private fun permissionLabel(permission: String): String = when (permission) {
+        Manifest.permission.RECORD_AUDIO -> "Microphone"
+        Manifest.permission.CALL_PHONE -> "Phone"
+        Manifest.permission.SEND_SMS -> "SMS"
+        Manifest.permission.POST_NOTIFICATIONS -> "Notifications"
+        else -> permission.substringAfterLast('.')
     }
 
     private fun startMonitorService(targetNumber: String) {
@@ -96,16 +106,13 @@ class MainActivity : AppCompatActivity() {
 
         if (requestCode != PERMISSIONS_REQUEST_CODE) return
 
-        val permissionResults = permissions.mapIndexed { index, permission ->
-            permission to grantResults.getOrNull(index)
-        }.toMap()
-
-        val requiredDenied = requiredPermissions.any { permission ->
-            permissionResults[permission] != PackageManager.PERMISSION_GRANTED
+        val deniedRequired = requiredPermissions.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
 
-        if (requiredDenied) {
-            statusText.text = "Status: required permissions denied"
+        if (deniedRequired.isNotEmpty()) {
+            val missingLabels = deniedRequired.joinToString(", ") { permissionLabel(it) }
+            statusText.text = "Status: required permissions denied -> $missingLabels"
             return
         }
 
