@@ -49,6 +49,13 @@ class CryMonitorService : Service() {
         mainHandler.post { Toast.makeText(this, message, Toast.LENGTH_SHORT).show() }
     }
 
+    private fun failAndStop(message: String) {
+        Log.e("CryMonitorService", message)
+        running.set(false)
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
