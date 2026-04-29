@@ -10,12 +10,10 @@ import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.net.Uri
 import android.os.Build
+import android.util.Log
 import android.os.IBinder
 import android.telephony.SmsManager
 import androidx.core.app.NotificationCompat
-import org.tensorflow.lite.Interpreter
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
@@ -27,10 +25,19 @@ class CryMonitorService : Service() {
         private const val CHANNEL_ID = "cry_monitor_channel"
         private const val SAMPLE_RATE = 16000
         private const val WINDOW_SIZE = 16000
+        private const val DETECTION_THRESHOLD = 0.70f
+        private const val REQUIRED_CONSECUTIVE_WINDOWS = 2
     }
 
     private val running = AtomicBoolean(false)
     private var phoneNumber: String = ""
+
+    private fun failAndStop(message: String) {
+        Log.e("CryMonitorService", message)
+        running.set(false)
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
+    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -54,7 +61,12 @@ class CryMonitorService : Service() {
 
     private fun monitorAudio() {
         thread(start = true) {
-            val interpreter = BabyCryInference.create(assets)
+            val interpreter = runCatching { BabyCryInference.create(assets) }
+                .getOrElse { error ->
+                    failAndStop("Unable to load baby_cry_model.tflite from assets: ${error.message}")
+                    return@thread
+                }
+
             val audioRecord = AudioRecord(
                 MediaRecorder.AudioSource.MIC,
                 SAMPLE_RATE,
@@ -65,19 +77,31 @@ class CryMonitorService : Service() {
 
             val buffer = ShortArray(WINDOW_SIZE)
             var consecutiveAlerts = 0
-            audioRecord.startRecording()
+            val recordingStarted = runCatching {
+                audioRecord.startRecording()
+                true
+            }.getOrElse { error ->
+                failAndStop("Unable to start microphone recording: ${error.message}")
+                false
+            }
+
+            if (!recordingStarted) {
+                audioRecord.release()
+                interpreter.close()
+                return@thread
+            }
 
             while (running.get()) {
                 val read = audioRecord.read(buffer, 0, buffer.size)
-                if (read > 0) {
+                if (read == WINDOW_SIZE) {
                     val score = BabyCryInference.predictCryScore(interpreter, buffer)
-                    if (score >= 0.95f) {
+                    if (score >= DETECTION_THRESHOLD) {
                         consecutiveAlerts++
                     } else {
                         consecutiveAlerts = 0
                     }
 
-                    if (consecutiveAlerts >= 3) {
+                    if (consecutiveAlerts >= REQUIRED_CONSECUTIVE_WINDOWS) {
                         triggerEmergency(phoneNumber)
                         consecutiveAlerts = 0
                         Thread.sleep(60_000)
