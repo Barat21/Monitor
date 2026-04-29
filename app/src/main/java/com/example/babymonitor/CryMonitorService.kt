@@ -10,9 +10,12 @@ import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.os.IBinder
 import android.telephony.SmsManager
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
@@ -22,6 +25,7 @@ class CryMonitorService : Service() {
         const val ACTION_START = "action_start"
         const val ACTION_STOP = "action_stop"
         const val EXTRA_PHONE_NUMBER = "extra_phone_number"
+        const val ACTION_TEST_ALERT = "action_test_alert"
         private const val CHANNEL_ID = "cry_monitor_channel"
         private const val SAMPLE_RATE = 16000
         private const val WINDOW_SIZE = 16000
@@ -31,6 +35,19 @@ class CryMonitorService : Service() {
 
     private val running = AtomicBoolean(false)
     private var phoneNumber: String = ""
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    private fun failAndStop(message: String) {
+        Log.e("CryMonitorService", message)
+        showToast(message)
+        running.set(false)
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
+    }
+
+    private fun showToast(message: String) {
+        mainHandler.post { Toast.makeText(this, message, Toast.LENGTH_SHORT).show() }
+    }
 
     private fun failAndStop(message: String) {
         Log.e("CryMonitorService", message)
@@ -53,7 +70,13 @@ class CryMonitorService : Service() {
             }
             ACTION_STOP -> {
                 running.set(false)
+                showToast("Monitor stopped")
                 stopSelf()
+            }
+            ACTION_TEST_ALERT -> {
+                phoneNumber = intent.getStringExtra(EXTRA_PHONE_NUMBER).orEmpty()
+                showToast("Testing call and SMS flow")
+                triggerEmergency(phoneNumber)
             }
         }
         return START_STICKY
@@ -102,6 +125,7 @@ class CryMonitorService : Service() {
                     }
 
                     if (consecutiveAlerts >= REQUIRED_CONSECUTIVE_WINDOWS) {
+                        showToast("Baby cry detected. Triggering alert")
                         triggerEmergency(phoneNumber)
                         consecutiveAlerts = 0
                         Thread.sleep(60_000)
@@ -118,12 +142,15 @@ class CryMonitorService : Service() {
     private fun triggerEmergency(number: String) {
         if (number.isBlank()) return
 
+        showToast("Attempting phone call alert")
+
         val callIntent = Intent(Intent.ACTION_CALL).apply {
             data = Uri.parse("tel:$number")
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         startActivity(callIntent)
 
+        showToast("Attempting SMS alert")
         val smsManager = SmsManager.getDefault()
         smsManager.sendTextMessage(number, null, "Baby is crying. Please check immediately.", null, null)
     }

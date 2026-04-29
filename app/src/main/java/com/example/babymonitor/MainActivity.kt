@@ -35,9 +35,35 @@ class MainActivity : AppCompatActivity() {
         statusText = findViewById(R.id.statusText)
         val startButton = findViewById<Button>(R.id.startButton)
         val stopButton = findViewById<Button>(R.id.stopButton)
+        val testAlertButton = findViewById<Button>(R.id.testAlertButton)
 
         startButton.setOnClickListener {
             startMonitoringWithPermissionCheck()
+        }
+
+        testAlertButton.setOnClickListener {
+            val targetNumber = phoneInput.text.toString().trim()
+            if (targetNumber.isEmpty()) {
+                statusText.text = "Status: enter a phone number"
+                return@setOnClickListener
+            }
+
+            val missingRequired = requiredPermissions.filter {
+                ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+            }
+
+            if (missingRequired.isNotEmpty()) {
+                val missingLabels = missingRequired.joinToString(", ") { permissionLabel(it) }
+                statusText.text = "Status: required permissions denied -> $missingLabels"
+                return@setOnClickListener
+            }
+
+            val intent = Intent(this, CryMonitorService::class.java).apply {
+                action = CryMonitorService.ACTION_TEST_ALERT
+                putExtra(CryMonitorService.EXTRA_PHONE_NUMBER, targetNumber)
+            }
+            startService(intent)
+            statusText.text = "Status: testing call + SMS"
         }
 
         stopButton.setOnClickListener {
