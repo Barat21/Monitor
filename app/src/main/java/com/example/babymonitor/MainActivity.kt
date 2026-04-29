@@ -14,6 +14,16 @@ import androidx.core.content.ContextCompat
 
 class MainActivity : AppCompatActivity() {
 
+    companion object {
+        private const val PERMISSIONS_REQUEST_CODE = 1001
+    }
+
+    private val requiredPermissions = listOf(
+        Manifest.permission.RECORD_AUDIO,
+        Manifest.permission.CALL_PHONE,
+        Manifest.permission.SEND_SMS
+    )
+
     private lateinit var phoneInput: EditText
     private lateinit var statusText: TextView
 
@@ -48,6 +58,7 @@ class MainActivity : AppCompatActivity() {
 
         val missing = getMissingRuntimePermissions()
         if (missing.isNotEmpty()) {
+            ActivityCompat.requestPermissions(this, missing.toTypedArray(), PERMISSIONS_REQUEST_CODE)
             ActivityCompat.requestPermissions(this, missing.toTypedArray(), 1001)
             statusText.text = "Status: waiting for permissions"
             return
@@ -57,6 +68,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun getMissingRuntimePermissions(): List<String> {
+        val permissions = requiredPermissions.toMutableList()
         val permissions = mutableListOf(
             Manifest.permission.RECORD_AUDIO,
             Manifest.permission.CALL_PHONE,
@@ -88,6 +100,17 @@ class MainActivity : AppCompatActivity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
 
+        if (requestCode != PERMISSIONS_REQUEST_CODE) return
+
+        val permissionResults = permissions.mapIndexed { index, permission ->
+            permission to grantResults.getOrNull(index)
+        }.toMap()
+
+        val requiredDenied = requiredPermissions.any { permission ->
+            permissionResults[permission] != PackageManager.PERMISSION_GRANTED
+        }
+
+        if (requiredDenied) {
         if (requestCode != 1001) return
 
         val denied = grantResults.any { it != PackageManager.PERMISSION_GRANTED }
