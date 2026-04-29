@@ -14,28 +14,20 @@ import androidx.core.content.ContextCompat
 
 class MainActivity : AppCompatActivity() {
 
+    private lateinit var phoneInput: EditText
+    private lateinit var statusText: TextView
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        val phoneInput = findViewById<EditText>(R.id.phoneInput)
-        val statusText = findViewById<TextView>(R.id.statusText)
+        phoneInput = findViewById(R.id.phoneInput)
+        statusText = findViewById(R.id.statusText)
         val startButton = findViewById<Button>(R.id.startButton)
         val stopButton = findViewById<Button>(R.id.stopButton)
 
         startButton.setOnClickListener {
-            requestRuntimePermissions()
-            val targetNumber = phoneInput.text.toString().trim()
-            if (targetNumber.isNotEmpty()) {
-                val intent = Intent(this, CryMonitorService::class.java).apply {
-                    action = CryMonitorService.ACTION_START
-                    putExtra(CryMonitorService.EXTRA_PHONE_NUMBER, targetNumber)
-                }
-                ContextCompat.startForegroundService(this, intent)
-                statusText.text = "Status: monitoring..."
-            } else {
-                statusText.text = "Status: enter a phone number"
-            }
+            startMonitoringWithPermissionCheck()
         }
 
         stopButton.setOnClickListener {
@@ -47,7 +39,24 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun requestRuntimePermissions() {
+    private fun startMonitoringWithPermissionCheck() {
+        val targetNumber = phoneInput.text.toString().trim()
+        if (targetNumber.isEmpty()) {
+            statusText.text = "Status: enter a phone number"
+            return
+        }
+
+        val missing = getMissingRuntimePermissions()
+        if (missing.isNotEmpty()) {
+            ActivityCompat.requestPermissions(this, missing.toTypedArray(), 1001)
+            statusText.text = "Status: waiting for permissions"
+            return
+        }
+
+        startMonitorService(targetNumber)
+    }
+
+    private fun getMissingRuntimePermissions(): List<String> {
         val permissions = mutableListOf(
             Manifest.permission.RECORD_AUDIO,
             Manifest.permission.CALL_PHONE,
@@ -58,12 +67,40 @@ class MainActivity : AppCompatActivity() {
             permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         }
 
-        val missing = permissions.filter {
+        return permissions.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
+    }
 
-        if (missing.isNotEmpty()) {
-            ActivityCompat.requestPermissions(this, missing.toTypedArray(), 1001)
+    private fun startMonitorService(targetNumber: String) {
+        val intent = Intent(this, CryMonitorService::class.java).apply {
+            action = CryMonitorService.ACTION_START
+            putExtra(CryMonitorService.EXTRA_PHONE_NUMBER, targetNumber)
+        }
+        ContextCompat.startForegroundService(this, intent)
+        statusText.text = "Status: monitoring..."
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
+        if (requestCode != 1001) return
+
+        val denied = grantResults.any { it != PackageManager.PERMISSION_GRANTED }
+        if (denied) {
+            statusText.text = "Status: required permissions denied"
+            return
+        }
+
+        val targetNumber = phoneInput.text.toString().trim()
+        if (targetNumber.isNotEmpty()) {
+            startMonitorService(targetNumber)
+        } else {
+            statusText.text = "Status: enter a phone number"
         }
     }
 }
